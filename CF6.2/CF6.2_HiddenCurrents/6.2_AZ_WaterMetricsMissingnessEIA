@@ -1,0 +1,1300 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "589173ab-f3fd-4759-a060-470a839dde6a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import seaborn as sns\n",
+    "import matplotlib.pyplot as plt\n",
+    "import matplotlib\n",
+    "import os"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b2627f8f-564a-4921-b6ed-466da1c5b833",
+   "metadata": {},
+   "source": [
+    "## 🌊⚡ Project Overview: Predictive Modeling for Cooling System Reporting Gaps\n",
+    "\n",
+    "The objective of this project is to develop a predictive model that can identify **power plants or states** that may require **assistance or oversight** in their thermoelectric cooling system reporting and accountability.\n",
+    "\n",
+    "Thermoelectric power generation—primarily fossil fuel and nuclear—accounts for a significant portion of **U.S. freshwater withdrawals**. As climate disruptions such as **rising temperatures**, **regional droughts**, and **water scarcity** increase, the strain on energy systems will only grow. In this context, understanding and improving the **reporting quality and data integrity** of water-cooled systems is critical.\n",
+    "\n",
+    "This project:\n",
+    "- Uses data from the **EIA Cooling and Boiler Reports** (Forms 860 & 923) from **2015–2023**\n",
+    "- Focuses on the **structure and completeness** of reported cooling system information\n",
+    "- Treats **missing or inconsistent data (\"missingness\") as a predictive feature**, not just a nuisance\n",
+    "- Aims to identify **facilities or regions** where data anomalies may reflect operational, logistical, or regulatory gaps\n",
+    "\n",
+    "Ultimately, this modeling could support the development of **Edge AI systems** to aid in real-time, environmentally efficient **water management in energy generation**—a step toward more resilient and sustainable infrastructure in the face of climate change.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "220b5e42-de77-4db9-9255-5fb6292de453",
+   "metadata": {},
+   "source": [
+    "# 📦 1. Import Data: 'cooling_boiler_df'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "862dbcc5-a29f-454a-8760-63f55d1517a9",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Path to your csv file\n",
+    "csv_file_path = '/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus/cooling_boiler_trimmed.csv'\n",
+    "\n",
+    "# Import \n",
+    "cooling_boiler_df = pd.read_csv(csv_file_path)  \n",
+    "\n",
+    "# Verify the import\n",
+    "print(cooling_boiler_df.dtypes.to_string())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b5cc3727-2f44-4c19-bd05-72e6ace6840d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Count of missing values per column\n",
+    "missing_count = cooling_boiler_df.isnull().sum()\n",
+    "\n",
+    "# Percentage of missing values per column\n",
+    "missing_percentage = (missing_count / len(cooling_boiler_df)) * 100\n",
+    "\n",
+    "# Combine into a single DataFrame for better readability\n",
+    "missing_summary = pd.DataFrame({\n",
+    "    'Missing Count': missing_count,\n",
+    "    'Missing Percentage': missing_percentage\n",
+    "})\n",
+    "\n",
+    "# Display the summary\n",
+    "with pd.option_context('display.max_rows', None, 'display.max_columns', None):\n",
+    "    print(missing_summary.to_string())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b9ec3311-7872-402a-bfb4-8c9cfa6c9768",
+   "metadata": {},
+   "source": [
+    "# 🔧 2. Data Cleaning for EDA"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d306f7e1-13c0-484f-b6d4-8180d577d868",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cooling_boiler_df.columns"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "715600a3-cf3e-4cba-b3a9-28c01f9e571d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "drop_cols = [\n",
+    "    'utility_id', 'state', 'plant_code', 'plant_name', \n",
+    "    'generator_id', 'boiler_id', 'cooling_id',\n",
+    "    'generator_primary_technology',\n",
+    "    'cooling_type_1_860', 'cooling_system_type', 'water_type',\n",
+    "    'water_source', 'water_source_name', 'water_discharge_name',\n",
+    "    'sector', 'steam_plant_type',\n",
+    "    'relationship_type', 'steam_type_simplified',\n",
+    "    'relationship_type_simplified', 'missing_dates',\n",
+    "    'cooling_type_2_860', 'cooling_type_923', 'generator_fuel_type',\n",
+    "    'generator_prime_mover', 'generator_status', 'boiler_status',\n",
+    "    'cooling_status'\n",
+    "]\n",
+    "\n",
+    "eda_df = cooling_boiler_df.drop(columns=drop_cols, errors='ignore')\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "739a2bc9-0cab-4c0e-a2ef-f0ce1bef971b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "numeric_df = eda_df.select_dtypes(include=[np.number, 'bool'])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c0979685-b588-423d-a34e-2420473671af",
+   "metadata": {},
+   "source": [
+    "# 📊 3. Correlation Matrix Heatmap: '_missing'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0776b357-344f-4b21-b2a2-f587df4fdc90",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from datetime import datetime\n",
+    "\n",
+    "# Create your correlation heatmap (just for reference)\n",
+    "corr_matrix = missing_df.corr()\n",
+    "plt.figure(figsize=(16, 12))\n",
+    "sns.heatmap(corr_matrix, cmap='coolwarm', annot=True, fmt=\".2f\", center=0)\n",
+    "plt.title('Correlation Heatmap of Missingness Flags')\n",
+    "\n",
+    "# Generate timestamped filename\n",
+    "timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')\n",
+    "output_path = '/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus/visuals'\n",
+    "filename = f'missingness_heatmap_{timestamp}.png'\n",
+    "\n",
+    "# Save the figure to file\n",
+    "plt.savefig(f'{output_path}/{filename}', dpi=300, bbox_inches='tight')\n",
+    "\n",
+    "# Optionally, show the plot\n",
+    "plt.show()\n",
+    "\n",
+    "# Confirmation message\n",
+    "print(f'✅ Heatmap saved successfully to: {output_path}/{filename}')\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "af501e21-47de-4d36-92b3-8e7dee9d1534",
+   "metadata": {},
+   "source": [
+    "# 👀 Initial Observations"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "7a73fa44-8d8a-41f5-bf97-d445dc446bd1",
+   "metadata": {},
+   "source": [
+    "| Observation (AZ) | Interpretation (ChatGPT+AZ) | Why It Matters (ChatGPT) |\n",
+    "|-------------|----------------|----------------|\n",
+    "| `cooling_type_1_860_missing` ⬌ `cooling_system_type_missing` = **1.00** | These two fields are *functionally redundant*—they go missing together. | 💡 **Consider dropping one** or creating a single “cooling_description_missing” feature. |\n",
+    "| These cooling tech fields missing ⬌ water metadata missing = **0.73–0.74** | When cooling tech descriptions are absent, water sourcing/discharge data is usually also missing. | ⚠️ Could signal systemic issues in **reporting by plant or operator type**—not random. Great feature group. |\n",
+    "| `water_discharge_name_missing` is *less* correlated with the others (~0.66) | Discharge info may be handled or reported **separately** (e.g., by another department or system). | 💧 Might suggest **workflow fragmentation** at some plants. |\n",
+    "| `avg_distance_water_intake_missing` has medium correlation (0.32–0.44) with tech and water metadata missing | Distance metric is probably only collected in **detailed reporting cases**—goes missing with other low-reporting scenarios. | 📏 Could reflect a “depth of reporting” latent variable. Might be a good *proxy for compliance rigor*. |\n",
+    "| Generator & boiler missingness = **highly correlated** | Those go together, maybe because they're filled from the same EIA form sections. | 🔧 Consider combining into an “equipment metadata missing” feature for modeling. |\n",
+    "| `cooling_id_missing` = slight **negative correlation** | Slight *inverse* correlation with generator/boiler missingness—interesting! | 🔍 Could hint that cooling reporting is treated as a separate process. Weak, but worth noting. |\n",
+    "| Water **metrics** (e.g., withdrawal, consumption) missingness = **very weakly negatively correlated** with tech descriptions | So if you’re missing volume data, you *might* have more metadata...not less? | 😳 Unexpected—**may reflect partial reporting under required thresholds or exemptions**. Could support a new hypothesis. |"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c18e8a25-c679-42ae-a860-a9ef1da1e034",
+   "metadata": {},
+   "source": [
+    "#### Hypothesis: Possibly: Disjointed departmental/agency reporting, e.g., discharge vs. intake teams"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "3235883b-13fd-451c-bad3-9c3175f55e4b",
+   "metadata": {},
+   "source": [
+    "# 💭 Observation Synthesis + Next Steps \n",
+    "### (AZ + ChatGPT)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a76edd52-11fb-427e-871a-1b2a7cee7a0c",
+   "metadata": {},
+   "source": [
+    "### 🔍 Missingness Correlation Patterns\n",
+    "\n",
+    "This initial analysis explores 23 missingness attributes across water, cooling, and power generation data. Interpreting the correlation heatmap revealed several notable groupings of missingness patterns, suggesting the presence of latent \"reporting profiles\" in the dataset.\n",
+    "\n",
+    "#### 🛠️ Next Step: Grouping Missingness Features\n",
+    "\n",
+    "To simplify further analysis and prepare for scatterplots and categorical visualizations, the following feature clusters will be created:\n",
+    "\n",
+    "* `power_gen_data_missing`: generator and boiler identifiers, in-service years, statuses, fuel type, and prime mover\n",
+    "* `cooling_equipment_missing`: cooling-specific ID and status\n",
+    "* `cooling_system_metadata_missing`: descriptive attributes like `cooling_type_1_860`, `cooling_system_type`, and possibly `avg_distance_water_intake`, `cooling_unit_hours_in_service`\n",
+    "* `water_metadata_missing`: categorical info on water type, source, and discharge\n",
+    "* `water_metrics_missing`: quantitative water use fields and fuel consumption\n",
+    "\n",
+    "Before this, however, we will explore the divergence between avg_distance_water_intake_missing and cooling_unit_hours_in_service; without domain knowledge, these would both see to be water metrics and track together. However, while cooling_unit_hours_in_service missingness strongly correlates with other water metrics missingness, avg_distance is slightly negatively correlated. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c3ab7d95-9f5b-42b5-8b33-ef89703ace56",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Correlation heatmap of the two flags\n",
+    "cor = plt.figure(figsize=(4, 3))\n",
+    "sns.heatmap(eda_df[['avg_distance_water_intake_missing', 'cooling_unit_hours_in_service_missing']].corr(),\n",
+    "            annot=True, cmap='coolwarm', center=0)\n",
+    "plt.title('Correlation: Distance Intake vs. Unit Hours Missingness')\n",
+    "plt.tight_layout()\n",
+    "plt.show()\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7ed9f1a9-4e22-40cd-9234-e9d403220de5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Optional: Save the plot with a timestamped filename\n",
+    "from datetime import datetime\n",
+    "timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')\n",
+    "save_path = f'/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus/visuals/avg_dist_cool_unit_corr_{timestamp}.png'\n",
+    "cor.savefig(save_path, dpi=300, bbox_inches='tight')\n",
+    "\n",
+    "# Confirmation\n",
+    "print(f'✅ Saved: {save_path}')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "77ee342a-fb1b-4dc0-ad92-58e8bf4afbf6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Frequency of missing combinations\n",
+    "cross_tab = eda_df.groupby(['avg_distance_water_intake_missing', \n",
+    "                        'cooling_unit_hours_in_service_missing']).size().unstack(fill_value=0)\n",
+    "\n",
+    "print(\"Cross-tabulation of missingness:\")\n",
+    "display(cross_tab)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6ca02807-2ee8-4705-926d-0940890adc42",
+   "metadata": {},
+   "source": [
+    "## Examining Missingness Patterns: Cooling Unit Hours vs. Water Intake Distance\n",
+    "\n",
+    "Here's a breakdown of the missingness patterns observed between `cooling_unit_hours_in_service` and `avg_distance_water_intake`:\n",
+    "\n",
+    "|                     | `avg_distance_water_intake` Present | `avg_distance_water_intake` Missing |\n",
+    "| :------------------ | :------------------------------------ | :------------------------------------ |\n",
+    "| **`cooling_unit_hours_in_service` Present** | **287,974** (Both present)        | **284,240** (Only `avg_distance_water_intake` missing) |\n",
+    "| **`cooling_unit_hours_in_service` Missing** | **115,766** (Only `cooling_unit_hours_in_service` missing) | **63,520** (Both missing)        |\n",
+    "\n",
+    "**Key Finding: A Significant Discrepancy**\n",
+    "\n",
+    "A notable split exists in the data:\n",
+    "\n",
+    "* **115,766 records** show missing values *only* for `cooling_unit_hours_in_service`.\n",
+    "* **284,240 records** show missing values *only* for `avg_distance_water_intake`.\n",
+    "\n",
+    "This substantial difference (over 400,000 rows) indicates that these two fields are **not** missing in a correlated manner, contrary to initial expectations.\n",
+    "\n",
+    "**💡 Possible Explanation:**\n",
+    "\n",
+    "The independence in missingness suggests that:\n",
+    "\n",
+    "* These fields are likely **not dependent on each other** in the reporting process.\n",
+    "* They may reflect **different aspects** of plant operations, potentially originating from distinct departments or data systems.\n",
+    "* `cooling_unit_hours_in_service` might be related to **dynamic, monthly operational data**, while `avg_distance_water_intake` could represent **static, system-specific information**.\n",
+    "\n",
+    "(AZ, ChatGPT)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c5788fe2-4d2a-4cdf-87b5-8c1bcb3388a4",
+   "metadata": {},
+   "source": [
+    "## 📝 Real-world reasoning \n",
+    "#### (ChatGPT as domain expert)\n",
+    "\n",
+    "**🧾 `cooling_unit_hours_in_service`**\n",
+    "\n",
+    "* Operational metric, often reported monthly.\n",
+    "* Captures runtime, so it’s tied to whether the plant was active that month.\n",
+    "* Might not be reported if:\n",
+    "    * The unit was offline\n",
+    "    * The plant isn’t required to report certain metrics (small generators sometimes get exemptions)\n",
+    "\n",
+    "**📍 `avg_distance_water_intake`**\n",
+    "\n",
+    "* Design or infrastructure detail, rarely changes.\n",
+    "* Likely reported once or infrequently (like annually or even only at commissioning).\n",
+    "* Plants may omit it if:\n",
+    "    * It’s a new plant not yet operational\n",
+    "    * It’s reported elsewhere (e.g., in Form 860 but not 923)\n",
+    "    * The intake is a shared resource not attributed at the unit level\n",
+    "\n",
+    "### 💥 Insight: \n",
+    "\n",
+    "We expected these to track together because they're both cooling-related—but the data generation process is actually totally different.\n",
+    "\n",
+    "* One is **operational** (flows over time), one is **structural** (fixed design attribute).\n",
+    "\n",
+    "That divergence tells us something valuable about the reporting context and might help identify systemic data process gaps."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c19b0fc8-af19-499b-a1df-eb58d7607db9",
+   "metadata": {},
+   "source": [
+    "## ⇢ GROUPING MISSING FEATURES \n",
+    "#### Having confirmed that avg_distance_water_intake_missing is water_metadata vs. a temporally dynamic metric"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "db41c92d-f2cb-4a74-afc4-d47e5fbabfde",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Power generation metadata missingness\n",
+    "cooling_boiler_df['power_gen_data_missing'] = (\n",
+    "    cooling_boiler_df['generator_id_missing'] |\n",
+    "    cooling_boiler_df['boiler_id_missing'] |\n",
+    "    cooling_boiler_df['generator_inservice_year_missing'] |\n",
+    "    cooling_boiler_df['boiler_inservice_year_missing'] |\n",
+    "    cooling_boiler_df['generator_status_missing'] |\n",
+    "    cooling_boiler_df['boiler_status_missing'] |\n",
+    "    cooling_boiler_df['generator_fuel_type_missing'] |\n",
+    "    cooling_boiler_df['generator_prime_mover_missing']\n",
+    ")\n",
+    "\n",
+    "# Cooling equipment (hardware) only\n",
+    "cooling_boiler_df['cooling_equipment_missing'] = (\n",
+    "    cooling_boiler_df['cooling_id_missing'] |\n",
+    "    cooling_boiler_df['cooling_status_missing']\n",
+    ")\n",
+    "\n",
+    "# Cooling system metadata (descriptive/static)\n",
+    "cooling_boiler_df['cooling_system_metadata_missing'] = (\n",
+    "    cooling_boiler_df['cooling_type_1_860_missing'] |\n",
+    "    cooling_boiler_df['cooling_system_type_missing'] |\n",
+    "    cooling_boiler_df['avg_distance_water_intake_missing']\n",
+    ")\n",
+    "\n",
+    "# Cooling system *operational* info (temporal)\n",
+    "cooling_boiler_df['cooling_operation_missing'] = cooling_boiler_df['cooling_unit_hours_in_service_missing']\n",
+    "\n",
+    "# Water metadata (categorical descriptors)\n",
+    "cooling_boiler_df['water_metadata_missing'] = (\n",
+    "    cooling_boiler_df['water_type_missing'] |\n",
+    "    cooling_boiler_df['water_source_missing'] |\n",
+    "    cooling_boiler_df['water_source_name_missing'] |\n",
+    "    cooling_boiler_df['water_discharge_name_missing']\n",
+    ")\n",
+    "\n",
+    "# Water metrics (quantitative)\n",
+    "cooling_boiler_df['water_metrics_missing'] = (\n",
+    "    cooling_boiler_df['fuel_consumption_from_all_fuel_types_mmbtu_missing'] |\n",
+    "    cooling_boiler_df['water_withdrawal_volume_million_gallons_missing'] |\n",
+    "    cooling_boiler_df['water_consumption_volume_million_gallons_missing']\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "50d59339-32e0-4cd3-bb45-86c4c2810ebd",
+   "metadata": {},
+   "source": [
+    "## 🎯 Lessons from the Missingness Correlation Heatmap\n",
+    "\n",
+    "- Certain fields go missing together, in consistent patterns. Missingness is structured, not random. \n",
+    "- Features Can Be Clustered by Shared Missingness Behavior. \n",
+    "- Clusters Likely Reflect Reporting Silos -- distinct data-generating processes / non-overlapping operational domains. \n",
+    "\n",
+    "### Question: Can the Missingness be predictive? \n",
+    "- If it is systematic, can we potentially learn from one cluster’s missingness to anticipate or explain gaps in another?\n",
+    "- 🔍 Missingness structure may reflect compliance thresholds, operational activity levels, or data handoff breakdowns. That’s valuable information for building oversight tools. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "03a0db83-271e-420e-9047-bfb0a213e857",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Export data to csv\n",
+    "path = '/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus'\n",
+    "output_file = 'cooling_boiler_trimmed_2.csv'\n",
+    "full_path = os.path.join(path, output_file)\n",
+    "\n",
+    "# Save the dataframe\n",
+    "cooling_boiler_df.to_csv(full_path, index=False)\n",
+    "\n",
+    "# Check if the file was created successfully\n",
+    "if os.path.exists(full_path):\n",
+    "    print(f\"Saving confirmed: '{output_file}' has been created successfully.\")\n",
+    "else:\n",
+    "    print(\"Error: File was not saved.\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ff8e8b8b-cc41-498a-b360-f7dac5d0a246",
+   "metadata": {},
+   "source": [
+    "## ⇢ Prep Data again for EDA"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0e36d90b-fa71-4589-9716-4f4dc72ff7da",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "drop_cols = [\n",
+    "    'utility_id', 'state', 'plant_code', 'plant_name', \n",
+    "    'generator_id', 'boiler_id', 'cooling_id',\n",
+    "    'generator_primary_technology',\n",
+    "    'cooling_type_1_860', 'cooling_system_type', 'water_type',\n",
+    "    'water_source', 'water_source_name', 'water_discharge_name',\n",
+    "    'sector', 'steam_plant_type',\n",
+    "    'relationship_type', 'steam_type_simplified',\n",
+    "    'relationship_type_simplified', 'missing_dates',\n",
+    "    'cooling_type_2_860', 'cooling_type_923', 'generator_fuel_type',\n",
+    "    'generator_prime_mover', 'generator_status', 'boiler_status',\n",
+    "    'cooling_status'\n",
+    "]\n",
+    "\n",
+    "eda_df_2 = cooling_boiler_df.drop(columns=drop_cols, errors='ignore')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4bdc1067-d5cf-4d14-9fc6-938af52485fd",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "eda_df_2.columns"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "1ab3a776-2d4d-4951-a459-8c93cc64cdc7",
+   "metadata": {},
+   "source": [
+    "# 📈 4. Scatterplot\n",
+    "- Validate whether those correlations are linear, clustered, or driven by outliers\n",
+    "- Spot weird patterns (e.g. a strong correlation might be hiding nonlinearity or bimodal distributions)\n",
+    "- Find candidates for regression later on\n",
+    "\n",
+    "### Pre-scatterplot: Correlation heatmap focusing on Numeric Variables outside of missingness booleans"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "73641d9a-cf5e-42f8-b44a-9d2bfa039ccd",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Step 1: Filter out '_missing' columns and create the numeric-only dataframe\n",
+    "non_missing_cols = [col for col in eda_df_2.columns if '_missing' not in col]\n",
+    "numeric_non_missing_df = eda_df_2[non_missing_cols].select_dtypes(include='number')\n",
+    "\n",
+    "# Step 2: Compute the correlation matrix for the numeric-only dataframe\n",
+    "corr_matrix = numeric_non_missing_df.corr()\n",
+    "\n",
+    "# Step 3: Create and store the figure object\n",
+    "fig, ax = plt.subplots(figsize=(18, 14))  # Store fig for saving\n",
+    "\n",
+    "# Create heatmap with annotations (correlation values in each cell)\n",
+    "sns.heatmap(corr_matrix, cmap='coolwarm', annot=True, fmt=\".2f\", center=0, ax=ax)\n",
+    "\n",
+    "# Optional: Customize the title or appearance if needed\n",
+    "ax.set_title('Correlation Heatmap of Numeric Variables')\n",
+    "\n",
+    "# Step 4: Display the plot\n",
+    "plt.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "2f9d2ae8-455d-4741-a83c-58be6eaca85f",
+   "metadata": {},
+   "source": [
+    "🤔 ChatGPT re: \"Why Your Correlations Might Be Weak\"\n",
+    "- normal in infrastructure + operational datasets: \n",
+    "    - Many metrics are influenced by nonlinear or multi-factor processes\n",
+    "    - There's often latent heterogeneity (e.g. a 500MW coal plant vs. a 5MW solar plant both being in the dataset)\n",
+    "    - Values may be highly seasonal or regional, which adds noise at the national level"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c7d2175a-3e48-4ed6-9138-27490899b3c7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Optional: Save the plot with a timestamped filename\n",
+    "from datetime import datetime\n",
+    "timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')\n",
+    "save_path = f'/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus/visuals/numeric_heatmap_{timestamp}.png'\n",
+    "fig.savefig(save_path, dpi=300, bbox_inches='tight')\n",
+    "\n",
+    "# Confirmation\n",
+    "print(f'✅ Saved: {save_path}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "3bbf177d-9177-4bb0-ab2a-f6e6423d00b7",
+   "metadata": {},
+   "source": [
+    "## 4a) Water Withdrawal v. Water Consumption Scatterplot"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ca0d6b11-83b4-45d6-8e3f-0977948c6b51",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "fig1 = plt.figure(figsize=(8,6))\n",
+    "sns.scatterplot(data=eda_df_2, x='water_withdrawal_volume_million_gallons', \n",
+    "                y='water_consumption_volume_million_gallons')\n",
+    "plt.title('Water Withdrawal vs. Water Consumption')\n",
+    "plt.show()\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c787e597-dbcd-4940-8d2d-98190a7f3871",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Optional: Save the plot with a timestamped filename\n",
+    "timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')\n",
+    "save_path = f'/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus/visuals/water_scatter_{timestamp}.png'\n",
+    "fig1.savefig(save_path, dpi=300, bbox_inches='tight')\n",
+    "\n",
+    "# Confirmation\n",
+    "print(f'✅ Saved: {save_path}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6798d230-429f-4033-9f66-8eaf54c93813",
+   "metadata": {},
+   "source": [
+    "## Water Withdrawal v. Water Consumption: Scatterplot analysis"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4fa53511-74fa-415c-9d40-f2f7850d2388",
+   "metadata": {},
+   "source": [
+    "| Observation (AZ) | Interpretation (ChatGPT+AZ) |\n",
+    "|------------|----------------|\n",
+    "| **Most cluster around 0 consumption** | Possibly many facilities either: <ul><li>Didn't report consumption</li><li>Use once-through cooling, returning most/all water</li><li>Filed zeros or NAs for regulatory reasons (incomplete data!)</li></ul> |\n",
+    "| **Linearity between 70k–130k withdrawal & consumption** | **Sane, expected pattern** — likely representing well-functioning or well-reported plants using **closed-loop or hybrid cooling** |\n",
+    "| **Outlier: 800,000 withdrawal, ~10,000 consumption** | Big red flag 🚨 — this could be: <ul><li>A once-through system (returns most water), **or**</li><li>Severely underreported consumption</li><li>Data entry issue or unit mismatch</li></ul> Investigating that plant/facility may reveal systemic issues.\n",
+    "\n",
+    "- Flag entries with high withdrawal and zero/near-zero consumption.\n",
+    "- Group plants by cooling system type (once you move into categorical plots) to see if that explains patterns."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c9830074-d683-40c0-93ff-389957622807",
+   "metadata": {},
+   "source": [
+    "## 4b) Fuel Consumption v. Cooling Unit Hours - Scatterplot"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "9ff02055-52e4-4a0c-bc40-b9acabbc7ad8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "fig7 = plt.figure(figsize=(8,6))\n",
+    "sns.scatterplot(data=eda_df_2, x='fuel_consumption_from_all_fuel_types_mmbtu', \n",
+    "                y='cooling_unit_hours_in_service')\n",
+    "plt.title('Fuel Consumption vs. Cooling Unit Hours')\n",
+    "plt.show()\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5be7d728-404d-4977-bd7c-717cec620351",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Optional: Save the plot with a timestamped filename\n",
+    "timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')\n",
+    "save_path = f'/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus/visuals/fuel_v_cooling_scatter_{timestamp}.png'\n",
+    "fig7.savefig(save_path, dpi=300, bbox_inches='tight')\n",
+    "\n",
+    "# Confirmation\n",
+    "print(f'✅ Saved: {save_path}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "2b0b5479-340d-4196-9448-48f077451709",
+   "metadata": {},
+   "source": [
+    "🟦 Dense Diagonal Cluster (Upper Left to Mid-Right)\n",
+    "\n",
+    "- That diagonal “edge” from (cooling hours around 0.1, fuel around 0.1e7) to (around 700, around 0.9e7) implies that:\n",
+    "    - As expected, more hours in service means more fuel consumption.\n",
+    "    - Tge clear upper limit line is possibly a design or operational ceiling.\n",
+    "    - It isn't just correlation — it might be a boundary of efficiency: \"For X hours, you can't burn more than Y fuel — even at full load.\"\n",
+    "\n",
+    "🧊 Sparse Below the Line?\n",
+    "If the area below that diagonal is dense, and the area above is sparse/empty, then it looks like a physical or regulatory constraint:\n",
+    "- Either you’re operating at normal/efficient levels\n",
+    "- Or anything beyond that is either rare or unreported\n",
+    "\n",
+    "🔍 Hypotheses This Suggests\n",
+    "- Fuel-to-Cooling-Hours Ratios Are Capped\n",
+    "- This could vary by plant type or cooling system (e.g. dry vs. wet cooling).\n",
+    "- Outliers = Inefficient or Erroneous; Anything way above the diagonal (burning lots of fuel, low hours) could be:\n",
+    "    - Incorrect reporting\n",
+    "    - Maintenance modes\n",
+    "    - Inefficient startup/shutdown phases"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9aaf787f-e7f4-43dd-ba20-cbedded6f79b",
+   "metadata": {},
+   "source": [
+    "## 4c) Water Consumption-to-Withdrawal Ratio - Scatterplot"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "936f96bd-034b-4fa0-8c54-69e286dea2d1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Avoid division by zero or NaNs\n",
+    "eda_df_2[\"consumption_to_withdrawal_ratio\"] = eda_df_2.apply(\n",
+    "    lambda row: row[\"water_consumption_volume_million_gallons\"] / row[\"water_withdrawal_volume_million_gallons\"]\n",
+    "    if row[\"water_withdrawal_volume_million_gallons\"] and row[\"water_withdrawal_volume_million_gallons\"] != 0\n",
+    "    else None,\n",
+    "    axis=1\n",
+    ")\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "26042898-9571-495d-9b34-2cb3ced0b38d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "fig4 = plt.figure(figsize=(10, 6))\n",
+    "sns.scatterplot(\n",
+    "    data=eda_df_2,\n",
+    "    x=\"fuel_consumption_from_all_fuel_types_mmbtu\",\n",
+    "    y=\"consumption_to_withdrawal_ratio\",\n",
+    "    alpha=0.4\n",
+    ")\n",
+    "plt.title(\"Fuel Consumption vs. Water Consumption-to-Withdrawal Ratio\")\n",
+    "plt.xlabel(\"Fuel Consumption (MMBTU)\")\n",
+    "plt.ylabel(\"Water Consumption / Withdrawal Ratio\")\n",
+    "plt.grid(True)\n",
+    "plt.show()\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "f9718fea-0400-4991-a09c-523effb4857a",
+   "metadata": {},
+   "source": [
+    "### Scatterplot Analysis: \n",
+    "\n",
+    "- Most Data Points: Ratio = 0; this means Water consumption is 0, Water withdrawal > 0\n",
+    "- \"That’s technically possible (e.g., dry cooling systems or perfect recirculation), but across hundreds of records? 👉 Way more likely: missing or underreported consumption values.\" (ChatGPT) \n",
+    "- The “-80,000” Outlier: Some values are negative (probably in water consumption), but negative consumption makes **no** physical sense. \"...you can’t un-consume water 💧🪄 👉 This is almost certainly a data entry error.\"(ChatGPT) \n",
+    "\n",
+    "NEXT: Identify rows with non-zero and positive values for all three: water_consumption, fuel_consumption, withdrawal; Focus analysis on that valid subset when calculating efficiency or sustainability indicators."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "5ecf2db7-1812-44bf-b1b7-cafeab87f77c",
+   "metadata": {},
+   "source": [
+    "### 4d) The Water Ratio scatterplot - filtered"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ff03cb10-1251-4b8f-b360-3054ddca72ed",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Filter for cleaner plot\n",
+    "filtered_df = eda_df_2[\n",
+    "    (eda_df_2[\"consumption_to_withdrawal_ratio\"] >= 0) &\n",
+    "    (eda_df_2[\"consumption_to_withdrawal_ratio\"] <= 1.5)\n",
+    "]\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e6e4513f-852c-4870-a44e-b67c375745cd",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "fig9 = plt.figure(figsize=(10, 6))\n",
+    "sns.scatterplot(\n",
+    "    data=filtered_df,\n",
+    "    x=\"fuel_consumption_from_all_fuel_types_mmbtu\",\n",
+    "    y=\"consumption_to_withdrawal_ratio\",\n",
+    "    alpha=0.4\n",
+    ")\n",
+    "plt.title(\"Fuel Consumption vs. Water Consumption-to-Withdrawal Ratio\")\n",
+    "plt.xlabel(\"Fuel Consumption (MMBTU)\")\n",
+    "plt.ylabel(\"Water Consumption / Withdrawal Ratio\")\n",
+    "plt.grid(True)\n",
+    "plt.show()\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "40dd32ee-0191-47b0-bd8b-485074f6ff83",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Optional: Save the plot with a timestamped filename\n",
+    "timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')\n",
+    "save_path = f'/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus/visuals/fuel_v_water_ratio_scatter_{timestamp}.png'\n",
+    "fig9.savefig(save_path, dpi=300, bbox_inches='tight')\n",
+    "\n",
+    "# Confirmation\n",
+    "print(f'✅ Saved: {save_path}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "751b9d93-893a-466d-aa1b-9530ac9f5c17",
+   "metadata": {},
+   "source": [
+    "### Scatterplot Analysis\n",
+    "\n",
+    "**1. Most high water consumption/withdrawal ratios (>1) are at low fuel consumption levels (0–0.2)**\n",
+    "\n",
+    "(ChatGPT) \"**That’s unusual:** a ratio >1 means plants are reporting more water consumed than withdrawn, which should rarely occur unless:\n",
+    "\n",
+    "* They’re reporting recycled or externally sourced water, or\n",
+    "* There’s bad data — e.g., water intake not properly reported\n",
+    "\n",
+    "The fact that this occurs at low fuel consumption levels suggests these may be small facilities, possibly with:\n",
+    "\n",
+    "* Less oversight\n",
+    "* More data entry mistakes\n",
+    "* Different cooling setups (e.g., once-through vs. closed-loop)\"\n",
+    "\n",
+    "**2. Diagonal lower-bound shape (0.4 to 0.6 fuel, 0.2 to 0.7 ratio)**\n",
+    "\n",
+    "(ChatGPT) \"**That lower diagonal edge is a structural boundary** — likely where plant design or operational norms prevent falling below certain water efficiency levels.\n",
+    "\n",
+    "It might even reflect efficiency gains: higher fuel use with relatively lower marginal water consumption.\"\n",
+    "\n",
+    "**3. A horizontal band at ~0.7 water ratio**\n",
+    "\n",
+    "(ChatGPT) \"That flat line across many fuel levels might represent:\n",
+    "\n",
+    "* A default or assumed value being used by many reporters (e.g., if someone fills in “typical” water usage).\n",
+    "* A technical baseline in regulatory guidelines (e.g., “typical plant consumes 70% of what it withdraws”).\n",
+    "* Or a lot of copy-pasting\" \n",
+    "\n",
+    "NEXT STEP: \n",
+    "* Flag records where ratio > 1, or = 0, or < 0; Explor their plant names / states / utilities"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "521ed5da-abb4-42db-8476-147566b929e8",
+   "metadata": {},
+   "source": [
+    "### Flag records for Water Ratio"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d4d4c32f-d168-4fdb-9e23-ef70cce6e8b3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Create ratio column (if you haven't already)\n",
+    "cooling_boiler_df['water_ratio'] = (\n",
+    "    cooling_boiler_df['water_consumption_volume_million_gallons'] /\n",
+    "    cooling_boiler_df['water_withdrawal_volume_million_gallons']\n",
+    ")\n",
+    "\n",
+    "# Create flags\n",
+    "cooling_boiler_df['ratio_gt_1'] = cooling_boiler_df['water_ratio'] > 1\n",
+    "cooling_boiler_df['ratio_eq_0'] = cooling_boiler_df['water_ratio'] == 0\n",
+    "cooling_boiler_df['ratio_lt_0'] = cooling_boiler_df['water_ratio'] < 0\n",
+    "\n",
+    "# Confirmation\n",
+    "print(\"✅ Flags added to cooling_boiler_df:\")\n",
+    "print(cooling_boiler_df[['water_ratio', 'ratio_gt_1', 'ratio_eq_0', 'ratio_lt_0']].head())\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1cf342c4-a1d9-4a15-a9d3-b2680fdf541f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cooling_boiler_df['ratio_lt_0'].value_counts()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d038634d-5e7d-4a59-8bff-024149db6d21",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Export data to csv\n",
+    "path = '/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus'\n",
+    "output_file = 'cooling_boiler_trimmed_2.csv'\n",
+    "full_path = os.path.join(path, output_file)\n",
+    "\n",
+    "# Save the dataframe\n",
+    "cooling_boiler_df.to_csv(full_path, index=False)\n",
+    "\n",
+    "# Check if the file was created successfully\n",
+    "if os.path.exists(full_path):\n",
+    "    print(f\"Saving confirmed: '{output_file}' has been created successfully.\")\n",
+    "else:\n",
+    "    print(\"Error: File was not saved.\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "283ad47f-3431-400f-894c-44945df70d4e",
+   "metadata": {},
+   "source": [
+    "# 📈📉 5. PAIR PLOT"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "db0faedd-e95b-458e-95ef-4363d5e92a74",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Only keep rows with all non-negative values for log transformation\n",
+    "sample_df = sample_df[\n",
+    "    (sample_df['fuel_consumption_from_all_fuel_types_mmbtu'] >= 0) &\n",
+    "    (sample_df['water_withdrawal_volume_million_gallons'] >= 0) &\n",
+    "    (sample_df['water_consumption_volume_million_gallons'] >= 0) &\n",
+    "    (sample_df['cooling_unit_hours_in_service'] >= 0)\n",
+    "].copy()\n",
+    "\n",
+    "# Log transform safely\n",
+    "sample_df['fuel_log'] = np.log1p(sample_df['fuel_consumption_from_all_fuel_types_mmbtu'])\n",
+    "sample_df['withdrawal_log'] = np.log1p(sample_df['water_withdrawal_volume_million_gallons'])\n",
+    "sample_df['consumption_log'] = np.log1p(sample_df['water_consumption_volume_million_gallons'])\n",
+    "sample_df['cooling_hours_log'] = np.log1p(sample_df['cooling_unit_hours_in_service'])\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4190daa1-22ae-4b98-b7d2-22fcc9130010",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "fig11= sns.pairplot(\n",
+    "    sample_df[['fuel_log', 'withdrawal_log', 'consumption_log', 'cooling_hours_log', 'water_metadata_missing']],\n",
+    "    diag_kind='kde',\n",
+    "    hue='water_metadata_missing',\n",
+    "    palette='Set2',\n",
+    "    corner=True\n",
+    ")\n",
+    "plt.suptitle('Pair Plot (Log Transformed) Colored by Water Metadata Missingness', y=1.02)\n",
+    "plt.show()\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "241b8a1f-00e7-4039-8550-12d60393668e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Optional: Save the plot with a timestamped filename\n",
+    "timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')\n",
+    "save_path = f'/Users/amyzhang/Desktop/A6_Dashboard/AZ_sisyphus/visuals/pair_plot_{timestamp}.png'\n",
+    "fig11.savefig(save_path, dpi=300, bbox_inches='tight')\n",
+    "\n",
+    "# Confirmation\n",
+    "print(f'✅ Saved: {save_path}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4025b438-c85e-4fbd-aab6-b8b9e8a2fdf6",
+   "metadata": {},
+   "source": [
+    "# ⚡️ Pt. I: Pair Plot Analysis (AZ+ChatGPT)\n",
+    "\n",
+    "### 🔍 1. **\"Stalactite\" shape** (Fuel Log vs. Cooling Hours Log)\n",
+    "> “Between 5–15 (log), cooling unit hours has the widest spread”\n",
+    "\n",
+    "#### 👀 Interpretation:\n",
+    "- That stalactite shape tells us:  \n",
+    "  - **Most facilities**, regardless of fuel consumption, operate for **similar ranges of cooling hours**.\n",
+    "  - But there’s **more variability** in cooling operation *in the middle* fuel usage range.\n",
+    "  - And very **low** or **very high** fuel use = more *predictable* cooling time behavior (tight clustering).\n",
+    "  \n",
+    "#### 🛠️ Hypothesis?\n",
+    "- Facilities that consume *moderate* fuel may include many *diverse types* (old vs. new, efficient vs. inefficient).\n",
+    "- Extreme users (low or high fuel) may represent more standardized operations (e.g., peaker plants or baseload units).\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### 🔍 2. **Fuel Log vs. Water Metrics (Consumption, Withdrawal)**\n",
+    "> “No clear clusters; distribution looks similar regardless of missingness.”\n",
+    "\n",
+    "#### 👀 Interpretation:\n",
+    "- This might suggest **decoupling** between **fuel consumption** and **water use**.\n",
+    "- It *should* correlate in many thermoelectric cooling contexts… so:\n",
+    "  - Possible **data entry inconsistencies**?\n",
+    "  - Plants using **dry cooling** (no/low water)?\n",
+    "  - **Non-thermal generators** sneaking in? (e.g., wind, solar, battery)\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### 🔍 3. **Bimodal Fuel Distribution**\n",
+    "> “Fuel consumption distribution is bimodal, symmetric between water_metadata_missing True/False”\n",
+    "\n",
+    "#### 👀 Interpretation:\n",
+    "- **Two operating regimes**—possibly:\n",
+    "  - One cluster of small or peaker plants\n",
+    "  - One cluster of large baseload or industrial plants\n",
+    "- The fact that **missingness is evenly spread** may indicate that missing data **isn’t biased** toward small or large facilities.\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### 📝 Big Picture Synthesis (ChatGPT)\n",
+    "- Some relationships *don’t behave as expected* → Model residuals might be informative!\n",
+    "- Bimodal behavior → Could signal need for **stratified modeling** or **cluster-based segmentation**.\n",
+    "- Cooling operation and water usage don’t linearly increase with fuel → Feature engineering (like ratios or interaction terms) will be important.\n",
+    "\n",
+    "---"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "f7e3a2f7-136e-4684-877d-40b91a0ea334",
+   "metadata": {},
+   "source": [
+    "# ⚡️ Pt. II: Pair Plot Analysis (AZ+ChatGPT)\n",
+    "\n",
+    "### 📈 Case 1: **Upper Bound Diagonal (Consumption vs. Withdrawal)**\n",
+    "\n",
+    "#### 🔍 Points cluster *below* the diagonal line from (0,0) upward—forming a lower triangle under that line.\n",
+    "- The diagonal represents the line where **water consumed = water withdrawn** (i.e., 100% of withdrawn water is consumed).\n",
+    "- The fact that **almost all points lie below that line** means:\n",
+    "  - Plants **withdraw more than they consume** — which is expected.\n",
+    "  - The “missing” water gets **returned** or **evaporates less than total volume**.\n",
+    "- **No points above that line** → Likely due to physical impossibility or reporting constraints. \n",
+    "\n",
+    "---\n",
+    "\n",
+    "### 📉 Case 2: **Lower Bound Diagonal (Cooling Hours vs. Water Use)**\n",
+    "\n",
+    "#### 🔍 Points form an *upper triangle* above a diagonal line, like the dots never fall *below* a certain floor that increases with x-axis.\n",
+    "- The diagonal represents a kind of **operational floor**: the more a system runs (cooling hours), the *minimum* water use increases.\n",
+    "- But it’s a **lower bound**, not a tight linear trend—so:\n",
+    "  - Plants might be **more efficient** (i.e., use less water per hour), especially newer ones.\n",
+    "  - Some might run **on less water-intensive cycles**, or use **reclaimed water / hybrid cooling**.\n",
+    "  - There's still *flexibility* above that floor—some plants withdraw a lot more water despite similar operation times.\n",
+    "#### 💡 Alternative view:\n",
+    "- That lower triangle could also reflect **reporting noise** in lower-hour systems (shorter runtimes = noisier ratios).\n",
+    "- Could even indicate **idling** plants that withdraw some water for testing or maintenance but don’t run many hours.\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### 🌱 Summary of the Triangle Patterns:\n",
+    "| Plot                            | Triangle Shape | Diagonal Type | Interpretation |\n",
+    "|-------------------------------|----------------|----------------|----------------|\n",
+    "| Consumption vs. Withdrawal     | Lower triangle | **Upper bound** | You can't consume more than you withdraw. Efficiency lives *below* the line. |\n",
+    "| Cooling Hours vs. Water Use    | Upper triangle | **Lower bound** | The more you operate, the *minimum* water needed rises. But use still varies based on tech. |\n",
+    "\n",
+    "---\n",
+    "\n",
+    "These diagonals represent **physical limits** and **operational realities**. "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "cc18a5f5-7aff-44b5-abf9-fd30c325cff5",
+   "metadata": {},
+   "source": [
+    "## ⇢ Create column to flag suspicious metrics (negative values) "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e981dc4a-56e2-4b46-96d4-61e376a81538",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Add flag columns for negative values\n",
+    "cooling_boiler_df['negative_fuel_consumption'] = cooling_boiler_df['fuel_consumption_from_all_fuel_types_mmbtu'] < 0\n",
+    "cooling_boiler_df['negative_water_withdrawal'] = cooling_boiler_df['water_withdrawal_volume_million_gallons'] < 0\n",
+    "cooling_boiler_df['negative_water_consumption'] = cooling_boiler_df['water_consumption_volume_million_gallons'] < 0\n",
+    "cooling_boiler_df['negative_cooling_unit_hours'] = cooling_boiler_df['cooling_unit_hours_in_service'] < 0\n",
+    "\n",
+    "# Optionally check how many negative values there are for each flag\n",
+    "print(cooling_boiler_df[['negative_fuel_consumption', 'negative_water_withdrawal', 'negative_water_consumption', 'negative_cooling_unit_hours']].sum())\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a12e57ad-daaa-4cfe-a4ea-154b8d5168c5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "eda_df_2[\n",
+    "    (eda_df_2[\"consumption_to_withdrawal_ratio\"] < 0)\n",
+    "    | (eda_df_2[\"water_withdrawal_volume_million_gallons\"] < 0)\n",
+    "    | (eda_df_2[\"water_consumption_volume_million_gallons\"] < 0)\n",
+    "]\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "aae6f8df-87b9-40cb-b360-b20ce07d5e93",
+   "metadata": {},
+   "source": [
+    "# 📊 6. Categorical Plot: \n",
+    "## Which cooling system configuration type (relationship_type) has the most missing water metrics? "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d7ba78ef-9143-4eef-89f9-ff331adef8c6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "fig16 = plt.figure(figsize=(10, 6))\n",
+    "sns.countplot(\n",
+    "    data=cooling_boiler_df,\n",
+    "    x='water_metrics_missing',\n",
+    "    hue='relationship_type'\n",
+    ")\n",
+    "plt.title('Count of Water Metrics Missing by Relationship Type')\n",
+    "plt.xlabel('Water Metrics Missing?')\n",
+    "plt.ylabel('Count')\n",
+    "plt.legend(title='Relationship Type', bbox_to_anchor=(1.05, 1), loc='upper left')\n",
+    "plt.tight_layout()\n",
+    "plt.show()\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "59f0e44f-c51c-4cf3-bb9d-491f74722b17",
+   "metadata": {},
+   "source": [
+    "### Normalize missing water metrics counts by total relationship_type counts"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "6e8030ac-0dbb-42c7-b7ac-02fa17c232ca",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Group by relationship_type and calculate counts\n",
+    "missing_by_relationship = (\n",
+    "    cooling_boiler_df\n",
+    "    .groupby('relationship_type')['water_metrics_missing']\n",
+    "    .agg(['sum', 'count'])\n",
+    "    .rename(columns={'sum': 'missing_count', 'count': 'total_count'})\n",
+    ")\n",
+    "\n",
+    "# Add proportion column\n",
+    "missing_by_relationship['missing_rate'] = (\n",
+    "    missing_by_relationship['missing_count'] / missing_by_relationship['total_count']\n",
+    ")\n",
+    "\n",
+    "# Sort for easier reading\n",
+    "missing_by_relationship = missing_by_relationship.sort_values('missing_rate', ascending=False)\n",
+    "\n",
+    "# View result\n",
+    "missing_by_relationship\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d8fed676-7c86-4650-96a6-c39085b2f75d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from matplotlib.colors import LinearSegmentedColormap  # \n",
+    "\n",
+    "# Create custom blue-to-gray colormap\n",
+    "custom_cmap = LinearSegmentedColormap.from_list(\"blue_to_gray\", [\"#1f77b4\", \"#aaaaaa\"])\n",
+    "\n",
+    "# Normalize the missing rates between 0 and 1\n",
+    "normalized = (missing_by_relationship['missing_rate'] - missing_by_relationship['missing_rate'].min()) / \\\n",
+    "             (missing_by_relationship['missing_rate'].max() - missing_by_relationship['missing_rate'].min())\n",
+    "\n",
+    "# Generate color values from colormap\n",
+    "colors = custom_cmap(normalized)\n",
+    "\n",
+    "# Create the bar plot\n",
+    "fig17 = plt.figure(figsize=(12, 6))\n",
+    "plt.bar(\n",
+    "    missing_by_relationship.index,\n",
+    "    missing_by_relationship['missing_rate'],\n",
+    "    color=colors\n",
+    ")\n",
+    "\n",
+    "plt.xticks(rotation=45, ha='right')\n",
+    "plt.ylabel('Proportion of Records with Missing Water Metrics')\n",
+    "plt.xlabel('Cooling System Relationship Type')\n",
+    "plt.title('Missing Water Metrics by Relationship Type')\n",
+    "plt.tight_layout()\n",
+    "plt.show()\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a0ff4ef0-098a-442f-8c55-1ef74b3085ae",
+   "metadata": {},
+   "source": [
+    "### Analysis\n",
+    "- As expected, Unoperable (Inactive) cooling systems have the highest rate of missingness in water metrics.\n",
+    "- Normalization reveals that cooling system configurations represented the least in the dataset (MC 1B MG; MC 1B 1B) have among the highest rates of missingness in water metrics. 1C MB 1G -- represented the most in the dataset by raw counts -- has the lowest rate of missingness in water metrics."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a9925254-3cd3-4124-9a80-9251629fcaeb",
+   "metadata": {},
+   "source": [
+    "# ? 7. Hypotheses"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "148bdc7e-1b92-4e23-95aa-84724d827d8d",
+   "metadata": {},
+   "source": [
+    "### 💡 Hypothesis 1: Cooling Technology & Water Efficiency  \n",
+    "**Statement:**  \n",
+    "> *Plants with specific cooling technologies (e.g., once-through vs. recirculating) and water types (e.g., fresh vs. reclaimed) show significantly different water consumption-to-withdrawal ratios.*\n",
+    "\n",
+    "**Why this matters:**  \n",
+    "- **Tech choices can affect water use**.\n",
+    "- This could help explain the range of water ratios seen in scatter and pair plots.\n",
+    "- This connects to sustainability and water stress issues.\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### 💡 Hypothesis 2: Cooling Unit Age Affects Water Usage Patterns  \n",
+    "**Statement:**  \n",
+    "> *Cooling units with longer operational histories (more hours in service) tend to have lower water consumption per unit of fuel consumed, indicating improvements in water efficiency over time or better operational tuning.*\n",
+    "\n",
+    "**Why this matters:**  \n",
+    "- Ties into the **lower-bound triangle** (see pair plots analysis).\n",
+    "- Suggests there's learning, upgrades, or aging-related changes in performance.\n",
+    "- (ChatGPT) \"You can investigate this with regression or binning analyses.\"\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### 💡 Hypothesis 3: Metadata Missingness Is Associated with Specific Technology Types or Facility Attributes  \n",
+    "**Statement:**  \n",
+    "> *Missing water metadata (e.g., water source, type) is more prevalent in plants using certain cooling system technologies or plant sectors, suggesting possible reporting gaps tied to system type or administrative silos.*\n",
+    "\n",
+    "**Why this matters:**  \n",
+    "- The missingness heatmap (Section 1) showed strong clustering across water and tech features.\n",
+    "- This could imply **systematic blind spots** in data reporting (e.g., small facilities or unconventional tech aren't well-documented).\n",
+    "\n",
+    "---\n",
+    "\n",
+    "### 💡 Hypothesis 4: Fuel Type Impacts Water Usage Ratios  \n",
+    "**Statement:**  \n",
+    "> *Plants using certain fuel types (e.g., nuclear, natural gas, coal) demonstrate systematically different water consumption-to-withdrawal ratios due to inherent thermodynamic and cooling system differences.*\n",
+    "\n",
+    "---"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c3ec3555-1043-44e1-a9e9-7d649c0a6d34",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.7"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
