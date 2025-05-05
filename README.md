@@ -1,10 +1,9 @@
-# 🌊 ResourceRipple_EIA: Hidden Currents in U.S. Cooling Systems (Apr. 10, 2025)
+# 🌊 ResourceRipple_EIA--> **Edge AI for Water Accountability in U.S. Power Plants**
+Hidden Currents in U.S. Cooling Systems: Missing Data in U.S. Cooling Systems (new direction - Apr. 10, 2025)
 
-**Project Description:** Analysis of U.S. Electricity Power Plants and Water Usage (2015-2023) using EIA Datasets. This project explores the intersection of energy and water consumption, with a current focus on missing data patterns in cooling systems.
+**Project Description:** Toward climate-resilient infrastructure: modeling gaps in water data to support future Edge AI accountability tools.
 
-😶‍🌫️ **New Direction (Apr. 10, 2025): Hidden Currents: Missing Data in U.S. Cooling Systems**
-
-The objective of this project is to develop a predictive model that can identify power plants or states that may require assistance or oversight in their thermoelectric cooling system reporting and accountability.
+Analysis of U.S. Electricity Power Plants and Water Usage (2015-2023) using EIA Datasets. This project explores the intersection of energy and water consumption, with a current focus on missing data patterns in cooling systems. Our objective is to develop a predictive model that can identify power plants or states that may require assistance or oversight in their thermoelectric cooling system reporting and accountability.
 
 **This project:**
 
@@ -16,5 +15,3 @@ The objective of this project is to develop a predictive model that can identify
 Ultimately, this modeling could support the development of Edge AI systems to aid in real-time, environmentally efficient water management in energy generation—a step toward more resilient and sustainable infrastructure in the face of climate change.
 
 **Note on derived columns:** Several fields in this model are explicitly designed to capture patterns of missingness in EIA-reported cooling data. These features are listed beneath tables under ‘Missingness Flags’ and are used as potential indicators of systemic issues in plant-level reporting.
-
-**Update (March 31, 2025):** Water usage analysis is pending due to time constraints for domain knowledge acquisition and further data wrangling.
