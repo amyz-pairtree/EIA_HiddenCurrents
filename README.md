@@ -1,5 +1,6 @@
-# 🌊 ResourceRipple_EIA--> **Edge AI for Water Accountability in U.S. Power Plants**
-Hidden Currents in U.S. Cooling Systems: Missing Data in U.S. Cooling Systems (new direction - Apr. 10, 2025)
+# 🌊 **Edge AI for Water Accountability in U.S. Power Plants**
+Hidden Currents in U.S. Cooling Systems: Missing Data in U.S. Cooling Systems 
+(previously "Resource Ripple"; new direction committed Apr 10, 2025)
 
 **Project Description:** Toward climate-resilient infrastructure: modeling gaps in water data to support future Edge AI accountability tools.
 
