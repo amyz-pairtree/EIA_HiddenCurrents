@@ -28,8 +28,9 @@ Several engineered columns represent *anomaly flags* (e.g., missing values, impl
 
 ## 🔗 Interactive Dashboard
 
-Explore the Tableau story:
-📊 [**Hidden Currents: EIA Water Data Quality in the U.S. Power Sector**]([https://public.tableau.com/app/profile/amy.zhang8641/viz/EIA_WaterStewardshipProject/Story1?publish=yes](https://public.tableau.com/app/profile/amy.zhang8641/viz/EIA_WaterStewardshipProject_1/Story1?publish=yes))
+Explore the Tableau story:  
+📊 [**Hidden Currents: EIA Water Data Quality in the U.S. Power Sector**](https://public.tableau.com/app/profile/amy.zhang8641/viz/EIA_WaterStewardshipProject_1/Story1?publish=yes)
+
 
 ---
 
